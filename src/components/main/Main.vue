@@ -39,7 +39,8 @@
               </v-btn>
               <v-btn text
                 color="primary"
-                @click="$refs.menu.save(date)">
+                @click="$refs.menu.save(date);
+                changePage()">
                 OK
               </v-btn>
             </v-date-picker>
@@ -54,6 +55,7 @@
           <v-text-field v-model="search"
             prepend-icon="search"
             label="Поиск"
+            @input="changePage()"
             dense></v-text-field>
         </div>
       </v-col>
@@ -74,7 +76,7 @@
             <!-- Заголовок -->
             <p class="text-subtitle-1 text-md-h4 mb-0">
               <a :href="`/#/article?guid=${n.guid}`"
-                class="news-app-link">
+                class="news-app-link deep-purple--text text-accent-4">
                 {{n.title}}
               </a>
             </p>
@@ -91,7 +93,7 @@
     <v-row justify="center">
       <v-col>
         <v-pagination v-model="page"
-          @input="changePage($event)"
+          @input="changePage()"
           :length="pagesTotal">
         </v-pagination>
       </v-col>
@@ -114,7 +116,8 @@
       pagesTotal: 0,
       page: 1,
       menu: false,
-      date: null
+      date: null,
+      search: ''
     }),
 
     computed: {
@@ -131,9 +134,9 @@
           // Сортируем от более новых к более старым
           response.data.items.sort((a, b) => {
             if(new Date(a.pubDate) > new Date(b.pubDate)) {
-              return -1;
+              return 1;
             
-            } else return 1;
+            } else return -1;
           });
 
           this.$store.commit('setRSSItems', {
@@ -153,30 +156,55 @@
           // Выводим первую страницу
           this.changePage();
 
-          console.log(this.visibleNews);
-
         } catch(err) {
           console.error(err);
         }
       },
 
-      changePage(event) {
-        this.visibleNews = this.items
-          .slice(this.page - 1, this.page + 5)
+      changePage() {
+        let filtered = this.items.slice();
+
+        if(this.date || this.search) {
+          // Фильтруем по дате/слову в заголовке
+          filtered = this.items.filter(i => {
+            let sameDate = true;
+            let sameWord = true;
+
+            if(this.date) {
+              sameDate = moment(i.pubDate)
+                .isSame(this.date, 'day');
+            }
+
+            if(this.search
+              && i.title.toLowerCase()
+                .indexOf(this.search.toLowerCase()) === - 1) {
+              sameWord = false;
+            }
+
+            return sameDate && sameWord;
+          });
+        }
+
+        if((this.page - 1) * 5 > filtered.length) {
+          // В случае фильтрации не с первой страницы,
+          // чтобы новости всё-таки отображались
+          this.page = 1
+        }
+
+        this.visibleNews = filtered
+          .slice((this.page - 1) * 5, ((this.page - 1) * 5) + 5);
+
+        // Посчитаем количество страниц
+        let pages = Math.floor(filtered.length / 5);
+
+        if(filtered.length % 5 > 0) pages++;
+
+        this.pagesTotal = pages;
       }
     },
 
     created() {
       this.getData();
-
-      // parser.parseStringPromise('http://static.feed.rbc.ru/rbc/logical/footer/news.rss')
-      // .then(function (result) {
-      //   console.dir(result);
-      //   console.log('Done');
-      // })
-      // .catch(function (err) {
-      //   console.error('Ошибка парсинга XML');
-      // });
     }
   }
 </script>
